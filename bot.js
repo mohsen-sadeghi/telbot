@@ -1,8 +1,9 @@
-const { Telegraf } = require('telegraf');
+const { Telegraf, session } = require('telegraf');
 const fs = require('fs');
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
 const bot = new Telegraf(config.botToken);
+bot.use(session());
 
 // ذخیره‌سازی موقت سفارشات کاربران
 const pendingPayments = {};
