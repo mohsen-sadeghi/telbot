@@ -1,14 +1,18 @@
 {
   "botToken": "8949500703:AAFgxy7Qm-i-nKi9Y6RfwighckJO7mkv2Sg",
   "cardNumber": "6219861971493175",
+  "adminId": 6202839966,
   "supportId": "mohsen5600",
+  "botUsername": "LandBit_bot",
   "discountCodes": {
     "LANDBIT50": 50000
   },
   "plans": {
     "1month": {
       "price": 250000,
-      "label": "اشتراک یک ماهه"
+      "label": "اشتراک یک ماهه",
+      "subLink": "https://your-sub-link.com/config",
+      "description": "دسترسی کامل به V‌PN برای یک ماه"
     }
   }
 }
