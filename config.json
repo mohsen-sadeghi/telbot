@@ -1,0 +1,14 @@
+{
+  "botToken": "8949500703:AAFgxy7Qm-i-nKi9Y6RfwighckJO7mkv2Sg",
+  "cardNumber": "6219861971493175",
+  "supportId": "mohsen5600",
+  "discountCodes": {
+    "LANDBIT50": 50000
+  },
+  "plans": {
+    "1month": {
+      "price": 250000,
+      "label": "اشتراک یک ماهه"
+    }
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "name": "landbit-bot",
+  "version": "1.0.0",
+  "description": "ربات تلگرام فروش V‌PN - LandBit",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js"
+  },
+  "keywords": [
+    "telegram",
+    "bot",
+    "vpn",
+    "shopping"
+  ],
+  "author": "LandBit",
+  "license": "MIT",
+  "dependencies": {
+    "telegraf": "^4.16.3"
+  }
+}
