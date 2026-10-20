@@ -1,5 +1,5 @@
 {
-  "botToken": "8949500703:AAFgxy7Qm-i-nKi9Y6RfwighckJO7mkv2Sg",
+  "botToken": "8949500703:AAGiPj3oZRXuPvALWBT4WFdGZD4J0QiQvTQ",
   "cardNumber": "6219861971493175",
   "adminId": 6202839966,
   "supportId": "mohsen5600",
@@ -11,8 +11,10 @@
     "1month": {
       "price": 250000,
       "label": "اشتراک یک ماهه",
-      "subLink": "https://your-sub-link.com/config",
-      "description": "دسترسی کامل به V‌PN برای یک ماه"
+      "subLink": "https://t.me/cryptovpnbot?start=subscription_69d9e767-8fa5-42f2-b740-6772835ee036",
+      "description": "دسترسی کامل به V‌PN برای یک ماه",
+      "duration_days": 30,
+      "volume_gb": "نامحدود"
     }
   }
 }
