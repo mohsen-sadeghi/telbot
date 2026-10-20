@@ -35,8 +35,8 @@ const texts = {
     `برای تمدید، سرویس فعلی خودت را انتخاب کن:\n\n${servicesText}`,
 
   noActiveService: () =>
-    `در حال حاضر سرویس فعالی برای تمدید نداري.\n` +
-    `اگر فکر می‌کنی اشتباهی رخ داده، به پشتیبانی پیام بده. 🎫`,
+    `در حال حاضر سرویس فعالی برای تمدید ندارید.\n` +
+    `اگر فکر می‌کنید اشتباهی رخ داده، به پشتیبانی پیام بدهید. 🎫`,
 
   account: (userId, planName, daysLeft, usedGb, totalGb, subscriptionLink) =>
     `👤 <b>حساب کاربری لند بیت</b>\n\n` +
@@ -61,7 +61,7 @@ const texts = {
     `⚙️ روش اتصال:\n` +
     `1️⃣ وارد ربات شو و بخش «👤 حساب کاربری» را باز کن.\n` +
     `2️⃣ لینک اشتراک را کپی کن.\n` +
-    `3️⢠ برنامه مورد نظر را باز کن و گزینه افزودن لینک / اضافه کردن از کلیپ‌بورد را بزن.\n` +
+    `3️⃣ برنامه مورد نظر را باز کن و گزینه افزودن لینک / افزودن از کلیپ‌بورد را بزن.\n` +
     `4️⃣ روی سرور انتخاب‌شده ضربه بزن تا متصل شود. ✅\n\n` +
     `اگر مشکلی داشتی، پشتیبانی لند بیت کنارت هست. 🎫`,
 
@@ -78,13 +78,13 @@ const texts = {
 
   support: (supportUsername) =>
     `🎫 <b>پشتیبانی لند بیت</b>\n\n` +
-    `اگر سؤال یا مشکلی داري، پیام خودت را برای پشتیبانی ارسال کن.\n` +
+    `اگر سؤال یا مشکلی دارید، پیام خودتان را برای پشتیبانی ارسال کنید.\n` +
     `👤 آیدی پشتیبانی: ${supportUsername}\n\n` +
     `سعی می‌کنیم در سریع‌ترین زمان ممکن پاسخ بدهیم. ⚡`,
 
   supportFallback: () =>
     `🎫 <b>پشتیبانی لند بیت</b>\n\n` +
-    `پیام خودت را همینجا ارسال کن.\n` +
+    `پیام خودتان را همینجا ارسال کنید.\n` +
     `تیم پشتیبانی بعد از بررسی با شما تماس می‌گیرد یا پاسخ می‌دهد.`,
 
   receiptReceived: () =>
@@ -100,7 +100,7 @@ const texts = {
     `⏳ اعتبار: ${daysLeft} روز\n` +
     `📊 حجم: ${volumeText}\n\n` +
     `📥 لینک اشتراک:\n<code>${subscriptionLink}</code>\n\n` +
-    `از اینترنت آزاد و امن لذت ببر! 🚀`,
+    `از اینترنت آزاد و امن لذت ببرید! 🚀`,
 
   activationSuccessNoLink: (planName, daysLeft, volumeText) =>
     `✅ <b>فعال‌سازی انجام شد</b>\n\n` +
@@ -114,22 +114,24 @@ const texts = {
     `⚠️ این گزینه دیگر معتبر نیست. لطفاً دوباره از منوی اصلی استفاده کن.`,
 
   blockedUser: () =>
-    `⚠️ دسترسی شما به این سرویس محدود شده است.\nاگر فکر می‌کنی اشتباهی رخ داده، با پشتیبانی تماس بگیر.`,
+    `⚠️ دسترسی شما به این سرویس محدود شده است.\nاگر فکر می‌کنید اشتباهی رخ داده، با پشتیبانی تماس بگیرید.`,
 
   discountApplied: (discount, finalPrice) =>
-    `✅ کد تخفیف شما معتبر است!\n\n🎁 تخفیف: ${discount.toLocaleString()} تومان\n💰 قیمت نهایی: <b>${finalPrice.toLocaleString()} تومان</b>`,
+    `✅ کد تخفیف شما معتبر است!\n\n🎁 تخفیف: ${discount.toLocaleString()} تومان\n💰 قیمت نهایی: <b>${finalPrice.toLocaleString()} تومان</b>\n\nلطفاً مبلغ را به کارت زیر واریز کنید:\n<code>{card_number}</code>\n\nبه نام: {holder_name}\n\n📎 پس از واریز، عکس رسید یا اسکرین شات پرداخت را ارسال کنید.`,
 
   discountInvalid: () =>
     `❌ کد تخفیف نامعتبر است. لطفاً دوباره تلاش کنید.`,
 
   planSelected: (plan) =>
-    `🎯 شما ${plan.label} را انتخاب کردید.\n💰 قیمت: ${plan.price.toLocaleString()} تومان\n⏳ مدت: ${plan.duration_days} روز`,
+    `🎯 شما ${plan.label} را انتخاب کردید.\n💰 قیمت: ${plan.price.toLocaleString()} تومان\n⏳ مدت: ${plan.duration_days} روز\n\nلطفاً ادامه بده یا کد تخفیف وارد کنید:`,
 
   receiptPrompt: (plan) =>
-    `🎯 ${plan.label}\n💰 قیمت: ${plan.price.toLocaleString()} تومان\n⏳ مدت: ${plan.duration_days} روز\n\n` +
+    `📌 ${plan.label}\n` +
+    `💰 قیمت: ${plan.price.toLocaleString()} تومان\n` +
+    `⏳ مدت: ${plan.duration_days} روز\n\n` +
     `💳 لطفاً مبلغ را به کارت زیر واریز کنید:\n` +
-    `<code>${process.env.CARD_NUMBER || ""}</code>\n\n` +
-    `به نام: ${process.env.HOLDER_NAME || "محسن صادقی"}\n\n` +
+    `<code>{card_number}</code>\n\n` +
+    `به نام: {holder_name}\n\n` +
     `📎 پس از واریز، عکس رسید یا اسکرین شات پرداخت را ارسال کنید.`,
 
   adminNewOrder: (plan, userId, firstName, userName) =>
@@ -138,6 +140,21 @@ const texts = {
     `👤 نام: ${firstName}\n` +
     `🆔 آیدی: ${userId}\n` +
     `🔗 یوزرنیم: ${userName}`,
+
+  discountOrContinue: (plan) =>
+    `📌 ${plan.label}\n` +
+    `💰 قیمت: ${plan.price.toLocaleString()} تومان\n` +
+    `⏳ مدت: ${plan.duration_days} روز\n\n` +
+    `🎁 اگر کد تخفیف دارید، وارد کنید یا ادامه بدون تخفیف.`,
+
+  continueNoDiscountMessage: (plan, cardNumber, holderName) =>
+    `📌 ${plan.label}\n` +
+    `💰 قیمت: ${plan.price.toLocaleString()} تومان\n` +
+    `⏳ مدت: ${plan.duration_days} روز\n\n` +
+    `💳 لطفاً مبلغ را به کارت زیر واریز کنید:\n` +
+    `<code>${cardNumber}</code>\n\n` +
+    `به نام: ${holderName}\n\n` +
+    `📎 پس از واریز، عکس رسید یا اسکرین شات پرداخت را ارسال کنید.`,
 };
 
 module.exports = texts;
