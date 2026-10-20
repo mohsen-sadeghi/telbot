@@ -1,200 +1,341 @@
+require('dotenv').config();
 const { Telegraf, session } = require('telegraf');
 const fs = require('fs');
+const texts = require('./texts');
+const keyboards = require('./keyboards');
+const escapeHtml = require('./utils/escape');
+
+// بارگذاری تنظیمات از فایل config.json
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
 
-const bot = new Telegraf(config.botToken);
+// ساخت ربات با توکن از متغیر محیطی یا config.json
+const bot = new Telegraf(process.env.BOT_TOKEN || config.botToken);
+
+// استفاده از سشن
 bot.use(session());
 
-// ذخیره‌سازی موقت سفارشات کاربران
-const pendingPayments = {};
-const userSubscriptions = {};
+// لاگ‌گیری رویدادها
+const log = (userId, action) => {
+  const now = new Date().toISOString();
+  console.log(`[${now}] کاربر ${userId} عملی انجام داد: ${action}`);
+};
 
-// شروع ربات
+// دستورات اصلی
 bot.start((ctx) => {
   const firstName = ctx.from.first_name || "کاربر عزیز";
-  const username = ctx.from.username || "ندارد";
+  log(ctx.from.id, "/start");
 
-  // ثبت‌نام کاربر در سیستم
-  if (!userSubscriptions[ctx.from.id]) {
-    userSubscriptions[ctx.from.id] = {
-      username: username,
-      subscriptions: []
-    };
-  }
-
-  ctx.reply(
-    `👋 سلام ${firstName} عزیز!\n\n` +
-    `به ربات LandBit خوش اومدی 🌐\n\n` +
-    `اینجا می‌تونی V‌PN باکیفیت و امن بگیری.\n` +
-    `از منوی زیر می‌تونی انتخاب کنی چه کاری انجام بدی.\n\n` +
-    `🚀 ربات با قابلیت ارائه سرویس فعال و پشتیبانی ۲۴ ساعته`,
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "🛒 خرید سرویس", callback_data: "buy" }],
-          [{ text: "📚 آموزش استفاده", callback_data: "guide" }],
-          [{ text: "💼 سرویس‌های من", callback_data: "my_services" }],
-          [{ text: "📞 تماس با پشتیبانی", callback_data: "support" }]
-        ]
-      }
+  ctx.reply(texts.start(firstName), {
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: keyboards.mainMenu
     }
-  );
+  });
 });
 
-// منوی اصلی
-bot.action("back_to_menu", (ctx) => {
-  ctx.answerCbQuery();
-  ctx.reply("🔙 منوی اصلی:", {
+bot.help((ctx) => {
+  log(ctx.from.id, "/help");
+  ctx.reply(texts.help(), {
+    parse_mode: 'HTML',
     reply_markup: {
-      inline_keyboard: [
-        [{ text: "🛒 خرید سرویس", callback_data: "buy" }],
-        [{ text: "📚 آموزش استفاده", callback_data: "guide" }],
-        [{ text: "💼 سرویس‌های من", callback_data: "my_services" }],
-        [{ text: "📞 تماس با پشتیبانی", callback_data: "support" }]
-      ]
+      inline_keyboard: keyboards.mainMenu
+    }
+  });
+});
+
+// منوی اصلی - callbackها
+bot.action('back_to_menu', async (ctx) => {
+  const firstName = ctx.from.first_name || "کاربر عزیز";
+  await ctx.answerCbQuery();
+  await ctx.editMessageText(texts.start(firstName), {
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: keyboards.mainMenu
     }
   });
 });
 
 // خرید سرویس
-bot.action("buy", (ctx) => {
-  ctx.answerCbQuery();
-  ctx.reply(
-    "🛒 خرید سرویس\n\n" +
-    "🔹 اشتراک یک ماهه: 250,000 تومان\n\n" +
-    "📌 برای ادامه، کد تخفیف خود را وارد کنید یا از بدون تخفیف ادامه کنید:",
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "📥 وارد کردن کد تخفیف", callback_data: "enter_discount" }],
-          [{ text: "➡️ ادامه بدون تخفیف", callback_data: "continue_no_discount" }],
-          [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-        ]
-      }
+bot.action('buy', async (ctx) => {
+  log(ctx.from.id, "click buy");
+  await ctx.answerCbQuery();
+
+  const plan = config.plans['1month'];
+  if (!plan) {
+    await ctx.editMessageText(texts.noPlans(), {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: keyboards.backToMenu }
+    });
+    return;
+  }
+
+  const planText = `🔹 ${plan.label}\nقیمت: ${plan.price.toLocaleString()} تومان\nمدت: ${plan.duration_days} روز\n`;
+
+  await ctx.editMessageText(texts.buy(planText), {
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "📥 وارد کردن کد تخفیف", callback_data: "enter_discount" },
+          { text: "➡️ ادامه بدون تخفیف", callback_data: "continue_no_discount" }
+        ],
+        ...keyboards.backToMenu
+      ]
     }
-  );
+  });
 });
 
-// وارد کردن کد تخفیف
-bot.action("enter_discount", (ctx) => {
-  ctx.answerCbQuery();
+// ورود کد تخفیف
+bot.action('enter_discount', async (ctx) => {
+  await ctx.answerCbQuery();
+  await ctx.editMessageText("🔢 کد تخفیف خود را وارد کنید:", {
+    reply_markup: { inline_keyboard: keyboards.backToMenu }
+  });
   ctx.session.step = "awaiting_discount";
-  ctx.reply("🔢 کد تخفیف خود را وارد کنید:");
 });
 
 // ادامه بدون تخفیف
-bot.action("continue_no_discount", (ctx) => {
-  ctx.answerCbQuery();
-  const plan = config.plans["1month"];
-  ctx.session.finalPrice = plan.price;
-  ctx.session.planKey = "1month";
-  ctx.session.discount = 0;
+bot.action('continue_no_discount', async (ctx) => {
+  log(ctx.from.id, "continue without discount");
+  const plan = config.plans['1month'];
+  const cardNumber = process.env.CARD_NUMBER || config.cardNumber;
+  const holderName = process.env.HOLDER_NAME || "ناشناس";
 
-  ctx.reply(
-    `💰 قیمت نهایی: ${plan.price.toLocaleString()} تومان\n\n` +
-    `💳 لطفاً مبلغ را به کارت زیر واریز کنید:\n` +
-    `<code>${config.cardNumber}</code>\n\n` +
-    `📎 پس از واریز، عکس رسید خود را ارسال کنید.`,
-    { parse_mode: "HTML", reply_markup: {
-      inline_keyboard: [
-        [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-      ]
-    }}
-  );
+  await ctx.answerCbQuery();
+  await ctx.editMessageText(texts.payment(plan.price.toLocaleString(), cardNumber, holderName), {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: keyboards.backToMenu }
+  });
 
-  // ذخیره سفارش در حالت منتظر پرداخت
-  pendingPayments[ctx.from.id] = {
+  ctx.session.pendingPayment = {
     planKey: "1month",
     price: plan.price,
-    discount: 0,
-    userId: ctx.from.id,
-    username: ctx.from.username || "ندارد",
-    firstName: ctx.from.first_name || "ناشناس"
+    discount: 0
   };
-
   ctx.session.step = "awaiting_receipt";
 });
 
-// دریافت متن (برای کد تخفیف)
-bot.on("text", (ctx) => {
-  const step = ctx.session.step;
-
-  if (step === "awaiting_discount") {
+// دریافت کد تخفیف
+bot.on('text', (ctx) => {
+  if (ctx.session.step === "awaiting_discount") {
     const code = ctx.message.text.trim().toUpperCase();
     const discount = config.discountCodes[code];
 
     if (discount) {
-      const plan = config.plans["1month"];
+      const plan = config.plans['1month'];
       const finalPrice = plan.price - discount;
 
-      ctx.session.finalPrice = finalPrice;
-      ctx.session.planKey = "1month";
-      ctx.session.discount = discount;
-
-      ctx.reply(
-        `✅ کد تخفیف شما معتبر است!\n\n` +
-        `🎁 تخفیف: ${discount.toLocaleString()} تومان\n` +
-        `💰 قیمت نهایی: <b>${finalPrice.toLocaleString()} تومان</b>\n\n` +
-        `💳 لطفاً مبلغ را به کارت زیر واریز کنید:\n` +
-        `<code>${config.cardNumber}</code>\n\n` +
-        `📎 پس از واریز، عکس رسید خود را ارسال کنید.`,
-        {
-          parse_mode: "HTML",
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-            ]
-          }
-        }
-      );
-
-      pendingPayments[ctx.from.id] = {
+      ctx.session.pendingPayment = {
         planKey: "1month",
         price: plan.price,
         discount: discount,
-        userId: ctx.from.id,
-        username: ctx.from.username || "ندارد",
-        firstName: ctx.from.first_name || "ناشناس"
+        finalPrice: finalPrice
       };
-
       ctx.session.step = "awaiting_receipt";
-    } else {
-      ctx.reply("❌ کد تخفیف نامعتبر است. لطفاً دوباره تلاش کنید.\n" +
-        "یا از منو زیر استفاده کنید:", {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "📥 وارد کردن دوباره", callback_data: "enter_discount" }],
-            [{ text: "➡️ ادامه بدون تخفیف", callback_data: "continue_no_discount" }],
-            [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-          ]
-        }
+
+      ctx.reply(
+        `✅ کد تخفیف شما معتبر است!\n\n🎁 تخفیف: ${discount.toLocaleString()} تومان\n💰 قیمت نهایی: <b>${finalPrice.toLocaleString()} تومان</b>\n`,
+        { parse_mode: 'HTML' }
+      ).then(() => {
+        return ctx.reply(
+          "💳 لطفاً مبلغ را به کارت زیر واریز کنید:\n" +
+          `<code>${process.env.CARD_NUMBER || config.cardNumber}</code>\n\nبه نام: ${process.env.HOLDER_NAME || "ناشناس"}\n`,
+          {
+            parse_mode: 'HTML',
+            reply_markup: { inline_keyboard: keyboards.backToMenu }
+          }
+        );
       });
+    } else {
+      ctx.reply("❌ کد تخفیف نامعتبر است. لطفاً دوباره تلاش کنید.", {
+        reply_markup: { inline_keyboard: keyboards.backToMenu }
+      });
+      ctx.session.step = null;
+    }
+  }
+});
+
+// دریافت رسید (عکس)
+bot.on('photo', async (ctx) => {
+  if (ctx.session.step === "awaiting_receipt") {
+    log(ctx.from.id, "sent receipt");
+    const payment = ctx.session.pendingPayment;
+
+    if (!payment) {
+      ctx.reply("⚠️ ابتدا یه پلن انتخاب کنید.", {
+        reply_markup: { inline_keyboard: [{ text: "🛒 خرید سرویس", callback_data: "buy" }] }
+      });
+      return;
     }
 
+    // ارسال رسید به ادمین
+    const adminId = process.env.ADMIN_ID || 6202839966;
+    ctx.telegram.sendPhoto(
+      adminId,
+      ctx.message.photo[ctx.message.photo.length - 1].file_id,
+      {
+        caption: `🔔 سفارش جدید:\n👤 ${ctx.from.first_name}\n🆔 ${ctx.from.id}\n💰 ${payment.finalPrice || payment.price} تومان`,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "✅ تایید", callback_data: `approve_${ctx.from.id}` }],
+            [{ text: "❌ رد", callback_data: `reject_${ctx.from.id}` }]
+          ]
+        }
+      }
+    );
+
+    ctx.reply(texts.receiptReceived(), {
+      reply_markup: { inline_keyboard: keyboards.backToMenu }
+    });
+
     ctx.session.step = null;
-  } else if (step === "awaiting_receipt") {
-    // اینجا فقط برای جلوگیری از پیام‌های غیرمنتظره
-    ctx.reply("📎 لطفاً عکس رسید را ارسال کنید.");
-  } else if (step === "in_support") {
+  }
+});
+
+// تأیید توسط ادمین
+bot.action(/approve_(\d+)/, async (ctx) => {
+  const targetUserId = parseInt(ctx.match[1]);
+  const plan = config.plans['1month'];
+
+  await ctx.answerCbQuery();
+
+  const link = plan.subLink || "https://example.com/sub"; 
+
+  await ctx.telegram.sendMessage(
+    targetUserId,
+    texts.activationSuccess(plan.label, plan.duration_days, plan.volume_gb, link),
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboards.mainMenu } }
+  );
+
+  await ctx.reply(`✅ سفارش کاربر ${targetUserId} تأیید شد.`);
+});
+
+// رد توسط ادمین
+bot.action(/reject_(\d+)/, async (ctx) => {
+  const targetUserId = parseInt(ctx.match[1]);
+
+  await ctx.answerCbQuery();
+  await ctx.telegram.sendMessage(
+    targetUserId,
+    `❌ سفارش شما رد شد.\nاگر مشکلی بوده، با پشتیبانی تماس بگیرید. 🎫`,
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboards.mainMenu } }
+  );
+
+  await ctx.reply(`✅ سفارش کاربر ${targetUserId} رد شد.`);
+});
+
+// تمدید سرویس
+bot.action('renew', async (ctx) => {
+  log(ctx.from.id, "click renew");
+  await ctx.answerCbQuery();
+
+  const activeService = ctx.session.activeService;
+  if (!activeService) {
+    await ctx.editMessageText(texts.noActiveService(), {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: keyboards.backToMenu }
+    });
+    return;
+  }
+
+  const serviceText = `🔹 ${activeService.name}\n${activeService.expiry}\n`;
+  await ctx.editMessageText(texts.renew(serviceText), {
+    parse_mode: 'HTML',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "📥 وارد کردن کد تخفیف", callback_data: "enter_discount_renew" },
+          { text: "➡️ ادامه بدون تخفیف", callback_data: "continue_no_discount_renew" }
+        ],
+        ...keyboards.backToMenu
+      ]
+    }
+  });
+});
+
+// حساب کاربری
+bot.action('account', async (ctx) => {
+  log(ctx.from.id, "click account");
+  await ctx.answerCbQuery();
+
+  const userId = ctx.from.id;
+  const activeService = ctx.session.activeService;
+
+  if (activeService) {
+    await ctx.editMessageText(
+      texts.account(userId, activeService.name, activeService.daysLeft, activeService.usedGb, activeService.totalGb, activeService.subscriptionLink),
+      { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboards.backToMenu } }
+    );
+  } else {
+    await ctx.editMessageText(texts.noAccount(userId), {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: keyboards.backToMenu }
+    });
+  }
+});
+
+// آموزش
+bot.action('tutorial', async (ctx) => {
+  log(ctx.from.id, "click tutorial");
+  await ctx.answerCbQuery();
+  await ctx.editMessageText(texts.tutorial(), {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: keyboards.backToMenu }
+  });
+});
+
+// پرداخت
+bot.action('payment', async (ctx) => {
+  log(ctx.from.id, "click payment");
+  const payment = ctx.session.pendingPayment;
+  const cardNumber = process.env.CARD_NUMBER || config.cardNumber;
+  const holderName = process.env.HOLDER_NAME || "ناشناس";
+
+  await ctx.answerCbQuery();
+
+  if (!payment) {
+    await ctx.editMessageText(texts.noPaymentInfo(), {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [{ text: "🛒 خرید سرویس", callback_data: "buy" }] }
+    });
+    return;
+  }
+
+  await ctx.editMessageText(
+    texts.payment(payment.finalPrice?.toLocaleString() || payment.price.toLocaleString(), cardNumber, holderName),
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboards.backToMenu } }
+  );
+});
+
+// پشتیبانی
+bot.action('support', async (ctx) => {
+  log(ctx.from.id, "click support");
+  const supportId = process.env.SUPPORT_USERNAME || config.supportId;
+
+  await ctx.answerCbQuery();
+  await ctx.editMessageText(texts.support(supportId), {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: keyboards.backToMenu }
+  });
+  ctx.session.step = "in_support";
+});
+
+// پیام عمومی برای ساپورت
+bot.on('text', (ctx) => {
+  if (ctx.session.step === "in_support") {
     const msg = ctx.message.text;
     const userId = ctx.from.id;
     const firstName = ctx.from.first_name;
     const userName = ctx.from.username || "ندارد";
+    const supportId = process.env.SUPPORT_USERNAME || config.supportId;
 
     ctx.telegram.sendMessage(
-      `@${config.supportId}`,
+      supportId.startsWith("@") ? supportId : "@" + supportId,
       `📩 پیام جدید از کاربر:\n👤 نام: ${firstName}\n🆔 آیدی: ${userId}\n🔗 یوزرنیم: ${userName}\n\n📝 پیام:\n${msg}`
     ).then(() => {
       ctx.reply(
-        "✅ پیام شما با موفقیت ارسال شد. مدیر در اسرعت پاسخ می‌ده.\n\n" +
-        "برای بازگشت به منوی اصلی:",
-        {
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-            ]
-          }
-        }
+        "✅ پیام شما ارسال شد. مدیر در اسرعت پاسخ می‌ده.",
+        { reply_markup: { inline_keyboard: keyboards.backToMenu } }
       );
       ctx.session.step = null;
     }).catch((err) => {
@@ -204,201 +345,17 @@ bot.on("text", (ctx) => {
   }
 });
 
-// دریافت عکس رسید
-bot.on("photo", (ctx) => {
-  if (ctx.session.step === "awaiting_receipt") {
-    const payment = pendingPayments[ctx.from.id];
-    if (!payment) return;
+// دستورات ناشناخته
+bot.on('text', (ctx) => {
+  const knownCommands = ['/start', '/help', '/buy', '/renew', '/profile', '/account', '/tutorial', '/payment', '/support'];
+  const isCommand = ctx.message.text.startsWith('/');
+  const isKnown = knownCommands.some(cmd => ctx.message.text.includes(cmd));
 
-    const userId = ctx.from.id;
-    const firstName = ctx.from.first_name || "ناشناس";
-    const userName = ctx.from.username || "ندارد";
-
-    ctx.reply(
-      `✅ رسید شما دریافت شد! 🎉\n\n` +
-      `🕐 در حال بررسی توسط مدیر...\n` +
-      `🔗 پس از تأیید، لینک V‌PN برای شما ارسال می‌شود.`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-          ]
-        }
-      }
-    );
-
-    // ارسال رسید به ادمین
-    ctx.telegram.sendPhoto(
-      config.adminId,
-      ctx.message.photo[ctx.message.photo.length - 1].file_id,
-      {
-        caption:
-          `🔔 سفارش جدید از کاربر:\n` +
-          `👤 نام: ${firstName}\n` +
-          `🆔 آیدی: ${userId}\n` +
-          `🔗 یوزرنیم: ${userName}\n` +
-          `💰 مبلغ: ${payment.price.toLocaleString()} تومان (تخفیف: ${payment.discount.toLocaleString()} تومان)\n\n` +
-          `✅ روی "تایید" کلیک کنید تا سفارش فعال شود.`,
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "✅ تایید و ارسال V‌PN", callback_data: `approve_${userId}` }],
-            [{ text: "❌ رد", callback_data: `reject_${userId}` }]
-          ]
-        }
-      }
-    ).catch(err => {
-      console.error("خطا در ارسال رسید به ادمین:", err.message);
-      ctx.telegram.sendMessage(
-        config.adminId,
-        `⚠️ هشدار: کاربر ${firstName} (${userId}) رسید ارسال کرده اما ارسال عکس به ادمین با خطا مواجه شد.\n` +
-        `لطفاً به صورت دستی بررسی کنید.`
-      );
+  if (isCommand && !isKnown) {
+    ctx.reply("⚠️ متوجه نشدم. لطفاً از منوی زیر استفاده کن یا /help را بفرست.", {
+      reply_markup: { inline_keyboard: keyboards.mainMenu }
     });
-
-    ctx.session.step = null;
   }
-});
-
-// تایید یا رد توسط ادمین
-bot.action(/approve_(\d+)/, (ctx) => {
-  const targetUserId = parseInt(ctx.match[1]);
-  const plan = config.plans["1month"];
-
-  // افزودن سرویس به کاربر
-  if (!userSubscriptions[targetUserId]) {
-    userSubscriptions[targetUserId] = {
-      username: "ندارد",
-      subscriptions: []
-    };
-  }
-
-  userSubscriptions[targetUserId].subscriptions.push({
-    planKey: "1month",
-    startDate: new Date().toISOString(),
-    endDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-    status: "active",
-    configLink: plan.subLink || "در دسترس نیست"
-  });
-
-  // ارسال لینک V‌PN به کاربر
-  ctx.telegram.sendMessage(
-    targetUserId,
-    `🎉 سفارش شما تأیید شد!\n\n` +
-    `🔗 لینک V‌PN شما:\n${plan.subLink || "به زودی در دسترس قرار داده می‌شود."}\n\n` +
-    `💡 برای استفاده از V‌PN، می‌توانید از اپلیکیشن V2Box استفاده کنید.\n` +
-    `📖 برای راهنمای نصح و استفاده، روی "📚 آموزش استفاده" کلیک کنید.`
-  ).then(() => {
-    ctx.replyWithMarkdown(`✅ سفارش کاربر ${targetUserId} تأیید شد و V‌PN ارسال شد.`);
-  }).catch((err) => {
-    console.error("خطا در ارسال پیام به کاربر:", err.message);
-    ctx.replyWithMarkdown(`⚠️ سفارش کاربر ${targetUserId} تأیید شد ولی ارسال V‌PN با خطا مواجه شد.`);
-  });
-
-  // حذف سفارش
-  delete pendingPayments[targetUserId];
-});
-
-bot.action(/reject_(\d+)/, (ctx) => {
-  const targetUserId = parseInt(ctx.match[1]);
-
-  ctx.telegram.sendMessage(
-    targetUserId,
-    `❌ متاسفانه سفارش شما رد شد.\n\n` +
-    `📞 در صورتی که مشکلی داشتید، با پشتیبانی تماس بگیرید.`
-  ).then(() => {
-    ctx.replyWithMarkdown(`✅ سفارش کاربر ${targetUserId} رد شد.`);
-  }).catch(() => {
-    ctx.reply(`⚠️ کاربر ${targetUserId} یافت نشد.`);
-  });
-
-  delete pendingPayments[targetUserId];
-});
-
-// بخش سرویس‌های من
-bot.action("my_services", (ctx) => {
-  ctx.answerCbQuery();
-  const user = userSubscriptions[ctx.from.id];
-
-  if (!user || !user.subscriptions || user.subscriptions.length === 0) {
-    ctx.reply(
-      `📭 هیچ سرویس فعالی ندارید.\n\n` +
-      `🛒 برای خرید، روی "خرید سرویس" کلیک کنید.`,
-      {
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "🛒 خرید سرویس", callback_data: "buy" }],
-            [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-          ]
-        }
-      }
-    );
-    return;
-  }
-
-  const servicesList = user.subscriptions.map((sub, index) => {
-    const endDate = new Date(sub.endDate);
-    const now = new Date();
-    const statusEmoji = sub.status === "active" ? "✅ فعال" : "❌ غیرفعال";
-    const expired = endDate < now ? "⏳ منقضی شده" : "✅ معتبر";
-
-    return `${index + 1}. ${sub.planKey === "1month" ? "اشتراک یک ماهه" : sub.planKey}\n` +
-      `   وضعیت: ${statusEmoji}\n` +
-      `   انقضا: ${expired}`;
-  }).join("\n\n");
-
-  ctx.reply(
-    `💼 سرویس‌های شما:\n\n${servicesList}\n\n` +
-    `📌 نکته: برای استفاده مجدد از هر سرویس، لینک آن را می‌توانید در ادامه دریافت کنید.`,
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-        ]
-      }
-    }
-  );
-});
-
-// آموزش استفاده
-bot.action("guide", (ctx) => {
-  ctx.answerCbQuery();
-  ctx.reply(
-    `📚 آموزش استفاده از V‌PN\n\n` +
-    `🔹 ۱. ابتدا یک برنامه V2Box نصب کنید:\n` +
-    `iOS: https://apps.apple.com/app/v2box/id1522233049\n` +
-    `Android: https://play.google.com/store/apps/details?id=com.v2fly.androidvpn\n` +
-    `ویندوز: https://github.com/2dust/v2rayN/releases\n\n` +
-    `🔹 ۲. پس از خرید، یه لینک V‌PN براتون میاد.\n` +
-    `🔹 ۳. لینک رو کپی کنید و داخل اپ V2Box وارد کنید.\n` +
-    `🔹 ۴. وصل شوید و از اینترنت آزاد لذت ببرید! 🚀\n\n` +
-    `❓ اگر سؤالی داشتید، از "تماس با پشتیبانی" استفاده کنید.`,
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-        ]
-      }
-    }
-  );
-});
-
-// تماس با پشتیبانی
-bot.action("support", (ctx) => {
-  ctx.answerCbQuery();
-  ctx.reply(
-    `📞 تماس با پشتیبانی\n\n` +
-    `اگر سؤال یا مشکلی داشتید، پیام بدهید تا مدیر پاسخ بده.\n\n` +
-    `@${config.supportId}`,
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [{ text: "🔙 منوی اصلی", callback_data: "back_to_menu" }]
-        ]
-      }
-    }
-  );
-
-  ctx.session.step = "in_support";
 });
 
 // خطاها
@@ -410,7 +367,7 @@ bot.on('polling_error', (err) => {
   console.error(`[POLLING ERROR] ${err.message}`);
 });
 
-// اجرای ربات
+// شروع ربات
 bot.launch().then(() => {
   console.log("✅ ربات LandBit با موفقیت شروع به کار کرد! 🚀");
 });

@@ -1,0 +1,9 @@
+Create a square profile logo for a Telegram bot named "LandBit".
+The logo should be minimal, modern, premium, and readable at small sizes.
+Design concept: a combination of the letters "L" and "B" or a subtle digital globe with network nodes and bits.
+Background: dark navy or black.
+Colors: neon cyan, electric blue, with a slight purple glow.
+Style: clean vector logo, high-tech branding, professional, futuristic, centered, safe for circular crop.
+It should look like a trustworthy VPN/network brand.
+No clutter, no extra text except possibly "LandBit", no watermark, no low quality, no random letters, no noisy details.
+Size recommendation: 1024x1024, PNG, dark background, centered, good for circular crop.
