@@ -4,6 +4,7 @@
   "adminId": 6202839966,
   "supportId": "mohsen5600",
   "botUsername": "LandBit_bot",
+  "holderName": "محسن صادقی",
   "discountCodes": {
     "LANDBIT50": 50000
   },
@@ -14,6 +15,14 @@
       "subLink": "https://t.me/cryptovpnbot?start=subscription_69d9e767-8fa5-42f2-b740-6772835ee036",
       "description": "دسترسی کامل به V‌PN برای یک ماه",
       "duration_days": 30,
+      "volume_gb": "نامحدود"
+    },
+    "2month": {
+      "price": 400000,
+      "label": "اشتراک دو ماهه",
+      "subLink": "https://t.me/cryptovpnbot?start=subscription_69d9e767-8fa5-42f2-b740-6772835ee036",
+      "description": "دسترسی کامل به V‌PN برای دو ماه",
+      "duration_days": 60,
       "volume_gb": "نامحدود"
     }
   }

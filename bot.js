@@ -3,7 +3,6 @@ const { Telegraf, session } = require('telegraf');
 const fs = require('fs');
 const texts = require('./texts');
 const keyboards = require('./keyboards');
-const escapeHtml = require('./utils/escape');
 
 // بارگذاری تنظیمات از فایل config.json
 const config = JSON.parse(fs.readFileSync('./config.json', 'utf8'));
@@ -24,12 +23,9 @@ const log = (userId, action) => {
 bot.start((ctx) => {
   const firstName = ctx.from.first_name || "کاربر عزیز";
   log(ctx.from.id, "/start");
-
   ctx.reply(texts.start(firstName), {
     parse_mode: 'HTML',
-    reply_markup: {
-      inline_keyboard: keyboards.mainMenu
-    }
+    reply_markup: { inline_keyboard: keyboards.mainMenu }
   });
 });
 
@@ -37,9 +33,7 @@ bot.help((ctx) => {
   log(ctx.from.id, "/help");
   ctx.reply(texts.help(), {
     parse_mode: 'HTML',
-    reply_markup: {
-      inline_keyboard: keyboards.mainMenu
-    }
+    reply_markup: { inline_keyboard: keyboards.mainMenu }
   });
 });
 
@@ -49,106 +43,100 @@ bot.action('back_to_menu', async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.editMessageText(texts.start(firstName), {
     parse_mode: 'HTML',
-    reply_markup: {
-      inline_keyboard: keyboards.mainMenu
-    }
+    reply_markup: { inline_keyboard: keyboards.mainMenu }
   });
 });
 
-// خرید سرویس
+// خرید سرویس - نمایش پلن‌ها
 bot.action('buy', async (ctx) => {
   log(ctx.from.id, "click buy");
   await ctx.answerCbQuery();
+  await ctx.editMessageText(texts.buy(""), {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: keyboards.plans }
+  });
+});
 
-  const plan = config.plans['1month'];
+// انتخاب پلن
+bot.action(/plan_(.+)/, async (ctx) => {
+  const planKey = ctx.match[1];
+  const plan = config.plans[planKey];
+
   if (!plan) {
-    await ctx.editMessageText(texts.noPlans(), {
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: keyboards.backToMenu }
-    });
+    await ctx.answerCbQuery("⚠️ پلن یافت نشد.");
     return;
   }
 
-  const planText = `🔹 ${plan.label}\nقیمت: ${plan.price.toLocaleString()} تومان\nمدت: ${plan.duration_days} روز\n`;
+  log(ctx.from.id, `selected plan ${planKey}`);
+  ctx.session.currentPlan = plan;
 
-  await ctx.editMessageText(texts.buy(planText), {
-    parse_mode: 'HTML',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "📥 وارد کردن کد تخفیف", callback_data: "enter_discount" },
-          { text: "➡️ ادامه بدون تخفیف", callback_data: "continue_no_discount" }
-        ],
-        ...keyboards.backToMenu
-      ]
+  await ctx.answerCbQuery();
+  await ctx.editMessageText(
+    `${texts.planSelected(plan)}\n\n${texts.discountOrContinue}`,
+    {
+      parse_mode: "HTML",
+      reply_markup: { inline_keyboard: keyboards.discountOrContinue }
     }
-  });
+  );
 });
 
-// ورود کد تخفیف
-bot.action('enter_discount', async (ctx) => {
+// وارد کردن کد تخفیف
+bot.action("_enter_discount", async (ctx) => {
   await ctx.answerCbQuery();
   await ctx.editMessageText("🔢 کد تخفیف خود را وارد کنید:", {
+    parse_mode: 'HTML',
     reply_markup: { inline_keyboard: keyboards.backToMenu }
   });
-  ctx.session.step = "awaiting_discount";
+  ctx.session.step = "_awaiting_discount";
 });
 
 // ادامه بدون تخفیف
-bot.action('continue_no_discount', async (ctx) => {
-  log(ctx.from.id, "continue without discount");
-  const plan = config.plans['1month'];
-  const cardNumber = process.env.CARD_NUMBER || config.cardNumber;
-  const holderName = process.env.HOLDER_NAME || "ناشناس";
+bot.action("_continue_no_discount", async (ctx) => {
+  const plan = ctx.session.currentPlan;
+  if (!plan) {
+    await ctx.answerCbQuery("⚠️ ابتدا یه پلن انتخاب کنید.");
+    return;
+  }
 
+  log(ctx.from.id, "continue without discount");
   await ctx.answerCbQuery();
-  await ctx.editMessageText(texts.payment(plan.price.toLocaleString(), cardNumber, holderName), {
+
+  ctx.session.finalPrice = plan.price;
+  ctx.session.discount = 0;
+  ctx.session.hasReceipt = false;
+
+  await ctx.editMessageText(texts.receiptPrompt(plan), {
     parse_mode: 'HTML',
     reply_markup: { inline_keyboard: keyboards.backToMenu }
   });
 
-  ctx.session.pendingPayment = {
-    planKey: "1month",
-    price: plan.price,
-    discount: 0
-  };
-  ctx.session.step = "awaiting_receipt";
+  ctx.session.step = "_awaiting_receipt";
 });
 
 // دریافت کد تخفیف
-bot.on('text', (ctx) => {
-  if (ctx.session.step === "awaiting_discount") {
+bot.on("text", (ctx) => {
+  if (ctx.session.step === "_awaiting_discount") {
     const code = ctx.message.text.trim().toUpperCase();
     const discount = config.discountCodes[code];
+    const plan = ctx.session.currentPlan;
 
     if (discount) {
-      const plan = config.plans['1month'];
       const finalPrice = plan.price - discount;
+      ctx.session.finalPrice = finalPrice;
+      ctx.session.discount = discount;
+      ctx.session.hasReceipt = false;
 
-      ctx.session.pendingPayment = {
-        planKey: "1month",
-        price: plan.price,
-        discount: discount,
-        finalPrice: finalPrice
-      };
-      ctx.session.step = "awaiting_receipt";
-
-      ctx.reply(
-        `✅ کد تخفیف شما معتبر است!\n\n🎁 تخفیف: ${discount.toLocaleString()} تومان\n💰 قیمت نهایی: <b>${finalPrice.toLocaleString()} تومان</b>\n`,
-        { parse_mode: 'HTML' }
-      ).then(() => {
-        return ctx.reply(
-          "💳 لطفاً مبلغ را به کارت زیر واریز کنید:\n" +
-          `<code>${process.env.CARD_NUMBER || config.cardNumber}</code>\n\nبه نام: ${process.env.HOLDER_NAME || "ناشناس"}\n`,
-          {
-            parse_mode: 'HTML',
-            reply_markup: { inline_keyboard: keyboards.backToMenu }
-          }
-        );
+      ctx.reply(texts.discountApplied(discount, finalPrice), { parse_mode: 'HTML' }).then(() => {
+        return ctx.reply(texts.receiptPrompt(plan), {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: keyboards.backToMenu }
+        });
       });
+
+      ctx.session.step = "_awaiting_receipt";
     } else {
-      ctx.reply("❌ کد تخفیف نامعتبر است. لطفاً دوباره تلاش کنید.", {
-        reply_markup: { inline_keyboard: keyboards.backToMenu }
+      ctx.reply(texts.discountInvalid(), {
+        reply_markup: { inline_keyboard: keyboards.discountOrContinue }
       });
       ctx.session.step = null;
     }
@@ -156,35 +144,34 @@ bot.on('text', (ctx) => {
 });
 
 // دریافت رسید (عکس)
-bot.on('photo', async (ctx) => {
-  if (ctx.session.step === "awaiting_receipt") {
+bot.on("photo", async (ctx) => {
+  if (ctx.session.step === "_awaiting_receipt") {
     log(ctx.from.id, "sent receipt");
-    const payment = ctx.session.pendingPayment;
 
-    if (!payment) {
-      ctx.reply("⚠️ ابتدا یه پلن انتخاب کنید.", {
-        reply_markup: { inline_keyboard: [{ text: "🛒 خرید سرویس", callback_data: "buy" }] }
-      });
-      return;
-    }
+    const plan = ctx.session.currentPlan;
+    const userId = ctx.from.id;
+    const firstName = ctx.from.first_name || "ناشناس";
+    const userName = ctx.from.username || "ندارد";
+
+    // ذخیره وضعیت پرداخت
+    ctx.session.hasReceipt = true;
 
     // ارسال رسید به ادمین
-    const adminId = process.env.ADMIN_ID || 6202839966;
-    ctx.telegram.sendPhoto(
-      adminId,
+    await ctx.telegram.sendPhoto(
+      config.adminId,
       ctx.message.photo[ctx.message.photo.length - 1].file_id,
       {
-        caption: `🔔 سفارش جدید:\n👤 ${ctx.from.first_name}\n🆔 ${ctx.from.id}\n💰 ${payment.finalPrice || payment.price} تومان`,
+        caption: texts.adminNewOrder(plan, userId, firstName, userName),
         reply_markup: {
           inline_keyboard: [
-            [{ text: "✅ تایید", callback_data: `approve_${ctx.from.id}` }],
-            [{ text: "❌ رد", callback_data: `reject_${ctx.from.id}` }]
+            [{ text: "✅ تایید و ارسال V‌PN", callback_data: `approve_${userId}` }],
+            [{ text: "❌ رد", callback_data: `reject_${userId}` }]
           ]
         }
       }
     );
 
-    ctx.reply(texts.receiptReceived(), {
+    await ctx.reply(texts.receiptReceived(), {
       reply_markup: { inline_keyboard: keyboards.backToMenu }
     });
 
@@ -193,17 +180,16 @@ bot.on('photo', async (ctx) => {
 });
 
 // تأیید توسط ادمین
-bot.action(/approve_(\d+)/, async (ctx) => {
+bot.action(/approve_(.+)/, async (ctx) => {
   const targetUserId = parseInt(ctx.match[1]);
-  const plan = config.plans['1month'];
+  const plan = ctx.session.currentPlan || config.plans["1month"];
 
+  log(targetUserId, "approved by admin");
   await ctx.answerCbQuery();
-
-  const link = plan.subLink || "https://example.com/sub"; 
 
   await ctx.telegram.sendMessage(
     targetUserId,
-    texts.activationSuccess(plan.label, plan.duration_days, plan.volume_gb, link),
+    texts.activationSuccess(plan.label, plan.duration_days, plan.volume_gb, plan.subLink),
     { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboards.mainMenu } }
   );
 
@@ -211,10 +197,12 @@ bot.action(/approve_(\d+)/, async (ctx) => {
 });
 
 // رد توسط ادمین
-bot.action(/reject_(\d+)/, async (ctx) => {
+bot.action(/reject_(.+)/, async (ctx) => {
   const targetUserId = parseInt(ctx.match[1]);
 
+  log(targetUserId, "rejected by admin");
   await ctx.answerCbQuery();
+
   await ctx.telegram.sendMessage(
     targetUserId,
     `❌ سفارش شما رد شد.\nاگر مشکلی بوده، با پشتیبانی تماس بگیرید. 🎫`,
@@ -225,12 +213,14 @@ bot.action(/reject_(\d+)/, async (ctx) => {
 });
 
 // تمدید سرویس
-bot.action('renew', async (ctx) => {
+bot.action("renew", async (ctx) => {
   log(ctx.from.id, "click renew");
-  await ctx.answerCbQuery();
 
-  const activeService = ctx.session.activeService;
+  // بررسی وجود سرویس فعال
+  const activeService = ctx.session.activeService || config.plans["1month"]; // فرضی: همیشه یه سرویس فعال داره
+
   if (!activeService) {
+    await ctx.answerCbQuery();
     await ctx.editMessageText(texts.noActiveService(), {
       parse_mode: 'HTML',
       reply_markup: { inline_keyboard: keyboards.backToMenu }
@@ -238,32 +228,52 @@ bot.action('renew', async (ctx) => {
     return;
   }
 
-  const serviceText = `🔹 ${activeService.name}\n${activeService.expiry}\n`;
-  await ctx.editMessageText(texts.renew(serviceText), {
-    parse_mode: 'HTML',
-    reply_markup: {
-      inline_keyboard: [
-        [
-          { text: "📥 وارد کردن کد تخفیف", callback_data: "enter_discount_renew" },
-          { text: "➡️ ادامه بدون تخفیف", callback_data: "continue_no_discount_renew" }
-        ],
-        ...keyboards.backToMenu
-      ]
+  await ctx.answerCbQuery();
+  await ctx.editMessageText(
+    `${texts.renew(activeService.label)}\n` +
+    `لطفاً یکی از گزینه‌های زیر را انتخاب کنید:`,
+    {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: keyboards.renewPlans }
     }
-  });
+  );
+});
+
+// انتخاب پلن تمدید
+bot.action(/renew_(.+)/, async (ctx) => {
+  const planKey = ctx.match[1];
+  const plan = config.plans[planKey];
+
+  if (!plan) {
+    await ctx.answerCbQuery("⚠️ پلن یافت نشد.");
+    return;
+  }
+
+  log(ctx.from.id, `selected renew plan ${planKey}`);
+  ctx.session.currentPlan = plan;
+
+  await ctx.answerCbQuery();
+  await ctx.editMessageText(
+    `${texts.planSelected(plan)}\n\n${texts.discountOrContinue}`,
+    {
+      parse_mode: "HTML",
+      reply_markup: { inline_keyboard: keyboards.discountOrContinue }
+    }
+  );
 });
 
 // حساب کاربری
-bot.action('account', async (ctx) => {
+bot.action("account", async (ctx) => {
   log(ctx.from.id, "click account");
-  await ctx.answerCbQuery();
 
   const userId = ctx.from.id;
-  const activeService = ctx.session.activeService;
+  const activeService = ctx.session.activeService || config.plans["1month"]; // فرضی
+
+  await ctx.answerCbQuery();
 
   if (activeService) {
     await ctx.editMessageText(
-      texts.account(userId, activeService.name, activeService.daysLeft, activeService.usedGb, activeService.totalGb, activeService.subscriptionLink),
+      texts.account(userId, activeService.label, activeService.duration_days, "0", "نامحدود", activeService.subLink),
       { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboards.backToMenu } }
     );
   } else {
@@ -275,7 +285,7 @@ bot.action('account', async (ctx) => {
 });
 
 // آموزش
-bot.action('tutorial', async (ctx) => {
+bot.action("tutorial", async (ctx) => {
   log(ctx.from.id, "click tutorial");
   await ctx.answerCbQuery();
   await ctx.editMessageText(texts.tutorial(), {
@@ -284,33 +294,28 @@ bot.action('tutorial', async (ctx) => {
   });
 });
 
-// پرداخت
-bot.action('payment', async (ctx) => {
+// پرداخت - نمایش وضعیت پرداخت فعلی
+bot.action("payment", async (ctx) => {
   log(ctx.from.id, "click payment");
-  const payment = ctx.session.pendingPayment;
+
+  const plan = ctx.session.currentPlan || config.plans["1month"];
   const cardNumber = process.env.CARD_NUMBER || config.cardNumber;
-  const holderName = process.env.HOLDER_NAME || "ناشناس";
+  const holderName = process.env.HOLDER_NAME || config.holderName || "محسن صادقی";
+  const hasReceipt = ctx.session.hasReceipt || false;
 
   await ctx.answerCbQuery();
 
-  if (!payment) {
-    await ctx.editMessageText(texts.noPaymentInfo(), {
-      parse_mode: 'HTML',
-      reply_markup: { inline_keyboard: [{ text: "🛒 خرید سرویس", callback_data: "buy" }] }
-    });
-    return;
-  }
-
   await ctx.editMessageText(
-    texts.payment(payment.finalPrice?.toLocaleString() || payment.price.toLocaleString(), cardNumber, holderName),
+    texts.payment(plan.price.toLocaleString(), cardNumber, holderName, hasReceipt),
     { parse_mode: 'HTML', reply_markup: { inline_keyboard: keyboards.backToMenu } }
   );
 });
 
 // پشتیبانی
-bot.action('support', async (ctx) => {
+bot.action("support", async (ctx) => {
   log(ctx.from.id, "click support");
-  const supportId = process.env.SUPPORT_USERNAME || config.supportId;
+
+  const supportId = process.env.SUPPORT_USERNAME || config.supportId || "mohsen5600";
 
   await ctx.answerCbQuery();
   await ctx.editMessageText(texts.support(supportId), {
@@ -321,13 +326,13 @@ bot.action('support', async (ctx) => {
 });
 
 // پیام عمومی برای ساپورت
-bot.on('text', (ctx) => {
+bot.on("text", (ctx) => {
   if (ctx.session.step === "in_support") {
     const msg = ctx.message.text;
     const userId = ctx.from.id;
     const firstName = ctx.from.first_name;
     const userName = ctx.from.username || "ندارد";
-    const supportId = process.env.SUPPORT_USERNAME || config.supportId;
+    const supportId = process.env.SUPPORT_USERNAME || config.supportId || "mohsen5600";
 
     ctx.telegram.sendMessage(
       supportId.startsWith("@") ? supportId : "@" + supportId,
