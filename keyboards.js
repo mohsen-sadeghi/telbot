@@ -18,7 +18,7 @@ const keyboards = {
 
   backToMenu: [
     [
-      { text: "🏠 بازگشت به منوی اصلی", callback_data: "back_to_menu" }
+      { text: "🔙 منوی اصلی", callback_data: "back_to_menu" }
     ]
   ],
 
@@ -34,8 +34,8 @@ const keyboards = {
 
   discountOrContinue: [
     [
-      { text: "📥 وارد کردن کد تخفیف", callback_data: "_enter_discount" },
-      { text: "➡️ ادامه بدون تخفیف", callback_data: "_continue_no_discount" }
+      { text: "📥 وارد کردن کد تخفیف", callback_data: "enter_discount" },
+      { text: "➡️ ادامه بدون تخفیف", callback_data: "continue_no_discount" }
     ],
     [
       { text: "🔙 منوی اصلی", callback_data: "back_to_menu" }
